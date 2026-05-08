@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { DragEvent } from 'react';
 import type { Item } from '../data/types';
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -19,15 +20,18 @@ function KanbanBoard() {
       }
       const data: Item[] = await response.json();
       setItems(data);
-    } catch (err: any) {
-      setError(err.message);
+      setError(null);
+      toast.success('The items have been loaded successfully');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      setError(message || 'Unable to load items');
     } finally {
       setLoading(false);
-      toast("The items have been loaded successfully");
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchItems();
   }, []);
 
@@ -93,22 +97,25 @@ function KanbanBoard() {
     </div>
   );
 
-  async function handleDrop(e: React.DragEvent, newState: Item['state']) {
+  async function handleDrop(e: DragEvent<HTMLDivElement>, newState: Item['state']) {
     const itemId = e.dataTransfer.getData('itemId');
     if (!itemId) return;
 
-    const itemToMove = items.find(item => item.id === parseInt(itemId, 10));
+    const itemIdNumber = Number(itemId);
+    if (!Number.isInteger(itemIdNumber)) return;
+
+    const itemToMove = items.find(item => item.id === itemIdNumber);
     if (!itemToMove || itemToMove.state === newState) return;
 
     const originalState = itemToMove.state;
 
     // Optimistically update state
     setItems(items.map(item =>
-      item.id === parseInt(itemId, 10) ? { ...item, state: newState } : item
+      item.id === itemIdNumber ? { ...item, state: newState } : item
     ));
 
     try {
-      const response = await fetch(`https://hb-kanban-backend.hb-user.workers.dev/items/${itemId}`, {
+      const response = await fetch(`https://hb-kanban-backend.hb-user.workers.dev/items/${itemIdNumber}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -120,15 +127,15 @@ function KanbanBoard() {
         throw new Error(`Error updating item state: ${response.status}`);
       }
 
-      toast.success(`Item ${itemId} moved to ${newState}`);
-      fetchItems(); // Reload items to ensure consistency
+      toast.success(`Item ${itemIdNumber} moved to ${newState}`);
+      await fetchItems(); // Reload items to ensure consistency
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating item state:', error);
-      toast.error(`Failed to move item ${itemId}: ${error.message}`);
+      toast.error(`Failed to save item: ${(error as Error).message}`);
       // Revert state on error
       setItems(items.map(item =>
-        item.id === parseInt(itemId, 10) ? { ...item, state: originalState } : item
+        item.id === itemIdNumber ? { ...item, state: originalState } : item
       ));
     }
   }

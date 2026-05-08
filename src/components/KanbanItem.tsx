@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import type { Item } from '../data/types';
 
 interface ItemData {
   title: string;
-  description?: string;
+  description: string;
   type: "User Story" | "Defect" | "Task";
   estimate: number;
   state: "Open" | "In Progress" | "In Validation" | "Done";
@@ -26,31 +26,9 @@ interface KanbanItemProps {
 }
 
 function KanbanItem({ item, onSave, onCancel }: KanbanItemProps) {
-  const [itemData, setItemData] = useState<ItemData>({
-    title: '',
-    description: '',
-    type: 'User Story', // Default value
-    estimate: 1, // Default value
-    state: 'Open', // Default value
-    assigned_user: '',
-    priority: 'Low', // Default value
-  });
-
-  useEffect(() => {
-    if (item) {
-      // Populate form fields if item prop is provided (editing)
-      setItemData({
-        title: item.title,
-        description: item.description,
-        type: item.type,
-        estimate: item.estimate,
-        state: item.state,
-        assigned_user: item.assigned_user,
-        priority: item.priority,
-      });
-    } else {
-      // Clear form fields if no item prop (creating new)
-      setItemData({
+  const getInitialItemData = (item?: Item): ItemData => {
+    if (!item) {
+      return {
         title: '',
         description: '',
         type: 'User Story',
@@ -58,19 +36,34 @@ function KanbanItem({ item, onSave, onCancel }: KanbanItemProps) {
         state: 'Open',
         assigned_user: '',
         priority: 'Low',
-      });
+      };
     }
-  }, [item]);
 
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { id, value } = e.target;
-    setItemData({ ...itemData, [id]: value });
+    return {
+      title: item.title,
+      description: item.description,
+      type: item.type,
+      estimate: item.estimate,
+      state: item.state,
+      assigned_user: item.assigned_user,
+      priority: item.priority,
+    };
   };
 
-  const handleNumberInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [itemData, setItemData] = useState<ItemData>(() => getInitialItemData(item));
+
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
-    setItemData({ ...itemData, [id]: parseInt(value, 10) || 0 });
+    const field = id as 'title' | 'description' | 'assigned_user';
+    setItemData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleNumberInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    const field = id as 'estimate';
+    const numericValue = value === '' ? 0 : Number(value);
+    setItemData(prev => ({ ...prev, [field]: Number.isFinite(numericValue) ? numericValue : 0 }));
   };
 
   const handleSelectChange = (id: keyof ItemData, value: ItemData[keyof ItemData]) => {
@@ -135,9 +128,9 @@ function KanbanItem({ item, onSave, onCancel }: KanbanItemProps) {
       toast.success(`Item ${item ? 'updated' : 'created'} successfully!`);
       onSave(); // Notify parent component to refresh/close form
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving item:', error);
-      toast.error(`Failed to save item: ${error.message}`);
+      toast.error(`Failed to save item: ${(error as Error).message}`);
     }
   };
 
